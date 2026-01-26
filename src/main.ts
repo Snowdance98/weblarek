@@ -6,6 +6,7 @@ import { Order } from './components/Models/Order';
 import { Api } from './components/base/Api';
 import { WebLarekAPI } from './components/Services/WebLarekAPI';
 import { IOrderData } from './types';
+import { API_URL } from './utils/constants'; // Импортируем константу из constants.ts
 
 console.log('=== Тестирование моделей данных ===');
 
@@ -81,116 +82,37 @@ console.log('\n4. Тестирование работы с сервером:');
 
 async function testServerAPI() {
   try {
-    // Получаем URL API из переменных окружения
-    const API_URL = import.meta.env.VITE_API_ORIGIN;
-    
     console.log('Проверяем переменные окружения...');
-    console.log('VITE_API_ORIGIN:', API_URL);
-    console.log('Все env переменные:', import.meta.env);
+    console.log('VITE_API_ORIGIN:', import.meta.env.VITE_API_ORIGIN);
     
-    if (!API_URL) {
+    if (!import.meta.env.VITE_API_ORIGIN) {
       console.error('Ошибка: VITE_API_ORIGIN не задан в .env файле');
-      console.log('Текущее значение import.meta.env:', import.meta.env);
       console.log('Создайте файл .env в корне проекта с содержимым:');
       console.log('VITE_API_ORIGIN=https://larek-api.nomoreparties.co');
-      console.log('Или используйте тестовый URL для проверки...');
-      
-      // Используем тестовый URL для проверки
-      const testAPI_URL = 'https://larek-api.nomoreparties.co';
-      console.log('Используем тестовый URL:', testAPI_URL);
-      await testConnection(testAPI_URL);
       return;
     }
     
-    await testConnection(API_URL);
+    console.log('Полный URL API из constants.ts:', API_URL);
     
-  } catch (error) {
-    console.error('Критическая ошибка при работе с API:', error);
-  }
-}
-
-async function testConnection(apiUrl: string) {
-  console.log('\n--- Тестирование подключения к API ---');
-  console.log('URL API:', apiUrl);
-  
-  // Проверяем доступность сервера
-  try {
-    console.log('Проверяем доступность сервера...');
-    const testResponse = await fetch(apiUrl, { method: 'HEAD' });
-    console.log('Статус сервера:', testResponse.status, testResponse.statusText);
+    // Создаем базовый API с использованием полного URL из constants.ts
+    console.log('\nСоздаем экземпляр Api...');
+    const baseApi = new Api(API_URL); // Используем полный URL из constants.ts
+    const webLarekAPI = new WebLarekAPI(baseApi);
     
-    if (!testResponse.ok) {
-      console.error('Сервер недоступен или возвращает ошибку');
-      
-      // Попробуем другой эндпоинт
-      console.log('Пробуем обратиться к корневому эндпоинту...');
-      const rootResponse = await fetch(apiUrl);
-      console.log('Ответ от корня:', rootResponse.status, rootResponse.statusText);
-      
-      // Попробуем с /api префиксом
-      const apiRootUrl = apiUrl + '/api';
-      console.log('Пробуем с /api префиксом:', apiRootUrl);
-      const apiResponse = await fetch(apiRootUrl);
-      console.log('Ответ от /api:', apiResponse.status, apiResponse.statusText);
-    }
-  } catch (fetchError) {
-    console.error('Ошибка при проверке сервера:', fetchError);
-    console.log('Возможные причины:');
-    console.log('1. Сервер не запущен');
-    console.log('2. Проблемы с интернет-соединением');
-    console.log('3. CORS ошибка');
-    console.log('4. Неверный URL');
-  }
-  
-  // Создаем базовый API
-  console.log('\nСоздаем экземпляр Api...');
-  const baseApi = new Api(apiUrl);
-  const webLarekAPI = new WebLarekAPI(baseApi);
-  
-  console.log('Создан экземпляр WebLarekAPI');
-  
-  // Пробуем разные варианты эндпоинтов
-  const endpointsToTry = [
-    '/product',
-    '/api/product',
-    '/api/products',
-    '/products',
-    '/api/items'
-  ];
-  
-  for (const endpoint of endpointsToTry) {
-    console.log(`\nПробуем эндпоинт: ${endpoint}`);
+    console.log('Создан экземпляр WebLarekAPI');
+    
+    // Тестируем получение товаров через наше API
+    console.log('\nТестируем getProductList()...');
     try {
-      // Временно тестируем напрямую fetch
-      const response = await fetch(apiUrl + endpoint);
-      console.log(`Статус для ${endpoint}:`, response.status, response.statusText);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`Успех! Данные с ${endpoint}:`, data);
-        break;
-      }
-    } catch (error) {
-      console.log(`Ошибка для ${endpoint}:`, error);
+      const productsFromServer = await webLarekAPI.getProductList();
+      console.log('Успех! Товары полученные с сервера:', productsFromServer);
+      console.log('Количество товаров с сервера:', productsFromServer.length);
+    } catch (apiError) {
+      console.error('Ошибка при получении товаров:', apiError);
     }
-  }
-  
-  // Пробуем получить товары через наш API класс
-  try {
-    console.log('\nПробуем получить товары через WebLarekAPI...');
-    const productsFromServer = await webLarekAPI.getProductList();
-    console.log('Успех! Товары полученные с сервера:', productsFromServer);
-    console.log('Количество товаров с сервера:', productsFromServer.length);
-  } catch (apiError) {
-    console.log('Не удалось получить товары через API. Используем тестовые данные.');
     
-    // Используем тестовые данные
-    const productsModel = new Products();
-    productsModel.setItems(apiProducts.items);
-    console.log('Используем тестовые данные из data.ts');
-    console.log('Тестовые товары:', productsModel.getItems());
-    
-    // Тестируем создание заказа с тестовыми данными
+    // Тестируем отправку заказа
+    console.log('\nТестируем submitOrder()...');
     const cartModel = new Cart();
     if (apiProducts.items.length > 0) {
       cartModel.addItem(apiProducts.items[0]);
@@ -206,16 +128,17 @@ async function testConnection(apiUrl: string) {
       items: cartModel.getItems().map(item => item.id)
     };
     
-    console.log('Тестовые данные заказа для демонстрации:', testOrderData);
+    console.log('Тестовые данные заказа:', testOrderData);
     
-    // Пробуем отправить заказ (скорее всего тоже упадет, но проверим)
     try {
-      console.log('Пробуем отправить тестовый заказ...');
       const orderResponse = await webLarekAPI.submitOrder(testOrderData);
       console.log('Заказ успешно отправлен:', orderResponse);
     } catch (orderError) {
-      console.log('Ошибка при отправке заказа:', orderError);
+      console.error('Ошибка при отправке заказа:', orderError);
     }
+    
+  } catch (error) {
+    console.error('Критическая ошибка при работе с API:', error);
   }
 }
 

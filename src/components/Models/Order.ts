@@ -42,10 +42,8 @@ export class Order {
       errors.payment = 'Не выбран способ оплаты';
     }
 
-    if (!this._email.trim()) {
+    if (!this._email) {
       errors.email = 'Укажите email';
-    } else if (!this._validateEmail(this._email)) {
-      errors.email = 'Email указан некорректно';
     }
 
     if (!this._phone.trim()) {
@@ -57,12 +55,6 @@ export class Order {
     }
 
     return errors;
-  }
-
-  // Приватный метод для валидации email
-  private _validateEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
   }
 
   // Дополнительные методы для получения отдельных полей (опционально)

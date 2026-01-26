@@ -28,10 +28,4 @@ export class WebLarekAPI {
       throw error;
     }
   }
-
-  // Дополнительный метод для получения одного товара по ID (опционально)
-  async getProductById(id: string): Promise<IProduct | undefined> {
-    const products = await this.getProductList();
-    return products.find(product => product.id === id);
-  }
 }
