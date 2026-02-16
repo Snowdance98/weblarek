@@ -1,19 +1,40 @@
 import { IBuyer, TPayment, IValidationResult } from '../../types';
+import type { IEvents } from '../base/Events';
 
 export class Order {
   private _payment: TPayment = 'online';
   private _email: string = '';
   private _phone: string = '';
   private _address: string = '';
+  private _events?: IEvents;
 
-  constructor() {}
+  constructor(events?: IEvents) {
+    this._events = events;
+  }
 
   // Сохраняет данные покупателя (можно сохранять частично)
   setData(data: Partial<IBuyer>): void {
-    if (data.payment !== undefined) this._payment = data.payment;
-    if (data.email !== undefined) this._email = data.email;
-    if (data.phone !== undefined) this._phone = data.phone;
-    if (data.address !== undefined) this._address = data.address;
+    const changed: Partial<IBuyer> = {};
+    if (data.payment !== undefined) {
+      this._payment = data.payment;
+      changed.payment = data.payment;
+    }
+    if (data.email !== undefined) {
+      this._email = data.email;
+      changed.email = data.email;
+    }
+    if (data.phone !== undefined) {
+      this._phone = data.phone;
+      changed.phone = data.phone;
+    }
+    if (data.address !== undefined) {
+      this._address = data.address;
+      changed.address = data.address;
+    }
+
+    if (Object.keys(changed).length > 0) {
+      this._events?.emit('order:changed', changed);
+    }
   }
 
   // Возвращает все данные покупателя
@@ -32,6 +53,7 @@ export class Order {
     this._email = '';
     this._phone = '';
     this._address = '';
+    this._events?.emit('order:cleared');
   }
 
   // Проверяет валидность всех полей и возвращает объект с ошибками

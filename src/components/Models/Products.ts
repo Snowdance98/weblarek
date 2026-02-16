@@ -1,14 +1,19 @@
 import { IProduct } from '../../types';
+import type { IEvents } from '../base/Events';
 
 export class Products {
   private _items: IProduct[] = [];
   private _selectedItem: IProduct | null = null;
+  private _events?: IEvents;
 
-  constructor() {}
+  constructor(events?: IEvents) {
+    this._events = events;
+  }
 
   // Сохраняет массив товаров
   setItems(items: IProduct[]): void {
     this._items = items;
+    this._events?.emit('products:items-changed', { items });
   }
 
   // Возвращает массив всех товаров
@@ -24,6 +29,7 @@ export class Products {
   // Сохраняет товар для детального отображения
   setSelectedItem(item: IProduct | null): void {
     this._selectedItem = item;
+    this._events?.emit('products:selected-changed', { item });
   }
 
   // Возвращает товар для детального отображения
