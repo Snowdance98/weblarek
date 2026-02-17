@@ -41,14 +41,6 @@ export class ContactsForm extends FormBase {
     this.phoneInput.value = value;
   }
 
-  set valid(value: boolean) {
-    super.valid = value;
-  }
-
-  set errors(value: string) {
-    super.errors = value;
-  }
-
   render(data?: Partial<IContactsFormView>): HTMLElement {
     return super.render(data as any);
   }

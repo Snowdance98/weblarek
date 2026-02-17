@@ -1,16 +1,13 @@
-import type { IEvents } from '../base/Events';
-import { CardBase, type ICardView } from './CardBase';
+import { CardWithCategory, type ICardWithCategoryView } from './CardWithCategory';
 
 /**
  * Карточка товара в каталоге (template#card-catalog).
+ * Не хранит id товара — событие выбора обрабатывается через переданный обработчик.
  */
-export class CardCatalog extends CardBase<Partial<ICardView>> {
-  constructor(container: HTMLButtonElement, private readonly events: IEvents) {
+export class CardCatalog extends CardWithCategory<Partial<ICardWithCategoryView>> {
+  constructor(container: HTMLButtonElement, onSelect: () => void) {
     super(container);
-
-    this.container.addEventListener('click', () => {
-      this.events.emit('card:select', { id: this.getIdFromDom() });
-    });
+    this.container.addEventListener('click', onSelect);
   }
 }
 

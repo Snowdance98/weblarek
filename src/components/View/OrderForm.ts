@@ -2,7 +2,7 @@ import type { IEvents } from '../base/Events';
 import { ensureElement, ensureAllElements } from '../../utils/utils';
 import { FormBase } from './FormBase';
 
-type TPaymentUI = 'online' | 'upon receipt';
+type TPaymentUI = 'card' | 'cash';
 
 interface IOrderFormView {
   payment: TPaymentUI;
@@ -24,7 +24,7 @@ export class OrderForm extends FormBase {
     this.paymentButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         // View не решает, что выбрать — только сообщает о действии пользователя
-        const payment: TPaymentUI = btn.name === 'card' ? 'online' : 'upon receipt';
+        const payment = btn.name as TPaymentUI; // 'card' | 'cash'
         this.events.emit('order:payment-select', { payment });
       });
     });
@@ -46,23 +46,13 @@ export class OrderForm extends FormBase {
    */
   set payment(value: TPaymentUI) {
     this.paymentButtons.forEach((btn) => {
-      const isActive = (value === 'online' && btn.name === 'card') ||
-        (value === 'upon receipt' && btn.name === 'cash');
+      const isActive = btn.name === value;
       btn.classList.toggle('button_alt-active', isActive);
     });
   }
 
   set address(value: string) {
     this.addressInput.value = value;
-  }
-
-  // Пробрасываем общие свойства базовой формы
-  set valid(value: boolean) {
-    super.valid = value;
-  }
-
-  set errors(value: string) {
-    super.errors = value;
   }
 
   render(data?: Partial<IOrderFormView>): HTMLElement {

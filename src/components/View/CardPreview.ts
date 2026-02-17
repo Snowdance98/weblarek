@@ -1,8 +1,7 @@
-import type { IEvents } from '../base/Events';
 import { ensureElement } from '../../utils/utils';
-import { CardBase, type ICardView } from './CardBase';
+import { CardWithCategory, type ICardWithCategoryView } from './CardWithCategory';
 
-interface ICardPreviewView extends Partial<ICardView> {
+interface ICardPreviewView extends Partial<ICardWithCategoryView> {
   description: string;
   buttonText: string;
   buttonDisabled: boolean;
@@ -10,20 +9,19 @@ interface ICardPreviewView extends Partial<ICardView> {
 
 /**
  * Карточка-превью товара (template#card-preview).
+ * Не хранит id товара — обработчик покупки передаётся снаружи.
  */
-export class CardPreview extends CardBase<ICardPreviewView> {
+export class CardPreview extends CardWithCategory<ICardPreviewView> {
   private readonly descriptionElement: HTMLElement;
   private readonly actionButton: HTMLButtonElement;
 
-  constructor(container: HTMLElement, private readonly events: IEvents) {
+  constructor(container: HTMLElement, onBuy: () => void) {
     super(container);
 
     this.descriptionElement = ensureElement<HTMLElement>('.card__text', container);
     this.actionButton = ensureElement<HTMLButtonElement>('.card__button', container);
 
-    this.actionButton.addEventListener('click', () => {
-      this.events.emit('card:add-to-basket', { id: this.getIdFromDom() });
-    });
+    this.actionButton.addEventListener('click', onBuy);
   }
 
   set description(value: string) {

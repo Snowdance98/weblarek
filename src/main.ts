@@ -31,49 +31,62 @@ const header = new Header(ensureElement<HTMLElement>('.header'), events);
 const gallery = new Gallery(ensureElement<HTMLElement>('.gallery'));
 const modal = new Modal(ensureElement<HTMLElement>('#modal-container'), events);
 
+// Статические представления — создаём один раз, перерисовываем через render()
+const basketView = new BasketView(cloneTemplate<HTMLElement>('#basket'), events);
+const orderForm = new OrderForm(cloneTemplate<HTMLFormElement>('#order'), events);
+const contactsForm = new ContactsForm(cloneTemplate<HTMLFormElement>('#contacts'), events);
+const successView = new SuccessView(cloneTemplate<HTMLElement>('#success'), events);
+
 type TModalScreen = 'none' | 'preview' | 'basket' | 'order' | 'contacts' | 'success';
 let currentModalScreen: TModalScreen = 'none';
-let currentOrderForm: OrderForm | null = null;
-let currentContactsForm: ContactsForm | null = null;
-let currentBasketView: BasketView | null = null;
 
 function renderCatalog(items: IProduct[]) {
   const cards = items.map((p) => {
     const el = cloneTemplate<HTMLButtonElement>('#card-catalog');
-    const card = new CardCatalog(el, events);
-    return card.render({
-      id: p.id,
-      title: p.title,
-      price: p.price,
-      image: p.image,
-      category: p.category,
+    const card = new CardCatalog(el, () => {
+      events.emit('card:select', { id: p.id });
     });
+    return card.render(p);
   });
   gallery.render({ items: cards });
 }
 
 function renderPreview(item: IProduct) {
   const el = cloneTemplate<HTMLElement>('#card-preview');
-  const view = new CardPreview(el, events);
+  let onClick: () => void;
 
   const inCart = cart.isInCart(item.id);
   const canBuy = item.price !== null;
 
+  if (!canBuy) {
+    // Товар бесценен — кнопку показываем как недоступную
+    onClick = () => {};
+  } else if (inCart) {
+    // Товар уже в корзине — кнопка превращается в удаление
+    onClick = () => {
+      events.emit('card:remove-from-basket', { id: item.id });
+    };
+  } else {
+    // Обычное добавление в корзину
+    onClick = () => {
+      events.emit('card:add-to-basket', { id: item.id });
+    };
+  }
+
+  const view = new CardPreview(el, onClick);
+
   return view.render({
-    id: item.id,
     title: item.title,
     price: item.price,
     image: item.image,
     category: item.category,
     description: item.description,
-    buttonText: inCart ? 'Уже в корзине' : 'В корзину',
-    buttonDisabled: inCart || !canBuy,
+    buttonText: !canBuy ? 'Недоступно' : inCart ? 'Удалить из корзины' : 'В корзину',
+    buttonDisabled: !canBuy,
   });
 }
 
 function openBasketModal() {
-  const el = cloneTemplate<HTMLElement>('#basket');
-  currentBasketView = new BasketView(el, events);
   currentModalScreen = 'basket';
   modal.open(renderBasket());
 }
@@ -81,22 +94,17 @@ function openBasketModal() {
 function renderBasket(): HTMLElement {
   const items = cart.getItems().map((p, idx) => {
     const li = cloneTemplate<HTMLElement>('#card-basket');
-    const item = new CardBasket(li, events);
+    const item = new CardBasket(li, () => {
+      events.emit('basket:remove', { id: p.id });
+    });
     return item.render({
-      id: p.id,
       title: p.title,
       price: p.price,
       index: idx + 1,
     });
   });
 
-  if (!currentBasketView) {
-    // На случай, если рендер вызывается после открытия без сохранённой ссылки
-    const el = cloneTemplate<HTMLElement>('#basket');
-    currentBasketView = new BasketView(el, events);
-  }
-
-  return currentBasketView.render({
+  return basketView.render({
     items,
     total: cart.getTotalPrice(),
     canSubmit: cart.getItemsCount() > 0,
@@ -104,17 +112,13 @@ function renderBasket(): HTMLElement {
 }
 
 function openOrderModal() {
-  const el = cloneTemplate<HTMLFormElement>('#order');
-  currentOrderForm = new OrderForm(el, events);
-  currentContactsForm = null;
-  currentBasketView = null;
   currentModalScreen = 'order';
 
   const buyer = order.getData();
   const errors = order.validate();
   modal.open(
-    currentOrderForm.render({
-      payment: buyer.payment,
+    orderForm.render({
+      payment: buyer.payment === 'online' ? 'card' : 'cash',
       address: buyer.address,
       valid: isOrderStepValid(errors),
       errors: orderErrorsToText(errors, ['payment', 'address']),
@@ -123,17 +127,13 @@ function openOrderModal() {
 }
 
 function openContactsModal() {
-  const el = cloneTemplate<HTMLFormElement>('#contacts');
-  currentContactsForm = new ContactsForm(el, events);
-  currentOrderForm = null;
-  currentBasketView = null;
   currentModalScreen = 'contacts';
 
   const buyer = order.getData();
   const errors = order.validate();
 
   modal.open(
-    currentContactsForm.render({
+    contactsForm.render({
       email: buyer.email,
       phone: buyer.phone,
       valid: isContactsStepValid(errors),
@@ -143,13 +143,10 @@ function openContactsModal() {
 }
 
 function openSuccessModal(total: number) {
-  const el = cloneTemplate<HTMLElement>('#success');
-  const view = new SuccessView(el, events);
-  currentOrderForm = null;
-  currentContactsForm = null;
-  currentBasketView = null;
+  cart.clear();
+  order.clear();
   currentModalScreen = 'success';
-  modal.open(view.render({ total }));
+  modal.open(successView.render({ total }));
 }
 
 function orderErrorsToText(errors: IValidationResult, fields: Array<keyof IValidationResult>): string {
@@ -180,9 +177,6 @@ events.on<{ items: IProduct[] }>('products:items-changed', () => {
 events.on<{ item: IProduct | null }>('products:selected-changed', ({ item }) => {
   if (!item) return;
   currentModalScreen = 'preview';
-  currentOrderForm = null;
-  currentContactsForm = null;
-  currentBasketView = null;
   modal.open(renderPreview(item));
 });
 
@@ -204,17 +198,17 @@ events.on('order:changed', () => {
   const buyer = order.getData();
   const errors = order.validate();
 
-  if (currentModalScreen === 'order' && currentOrderForm) {
-    currentOrderForm.render({
-      payment: buyer.payment,
+  if (currentModalScreen === 'order') {
+    orderForm.render({
+      payment: buyer.payment === 'online' ? 'card' : 'cash',
       address: buyer.address,
       valid: isOrderStepValid(errors),
       errors: orderErrorsToText(errors, ['payment', 'address']),
     });
   }
 
-  if (currentModalScreen === 'contacts' && currentContactsForm) {
-    currentContactsForm.render({
+  if (currentModalScreen === 'contacts') {
+    contactsForm.render({
       email: buyer.email,
       phone: buyer.phone,
       valid: isContactsStepValid(errors),
@@ -224,21 +218,20 @@ events.on('order:changed', () => {
 });
 
 events.on('order:cleared', () => {
-  // Если формы открыты — просто отрисуем их из текущего состояния модели
   const buyer = order.getData();
   const errors = order.validate();
 
-  if (currentModalScreen === 'order' && currentOrderForm) {
-    currentOrderForm.render({
-      payment: buyer.payment,
+  if (currentModalScreen === 'order') {
+    orderForm.render({
+      payment: buyer.payment === 'online' ? 'card' : 'cash',
       address: buyer.address,
       valid: isOrderStepValid(errors),
       errors: orderErrorsToText(errors, ['payment', 'address']),
     });
   }
 
-  if (currentModalScreen === 'contacts' && currentContactsForm) {
-    currentContactsForm.render({
+  if (currentModalScreen === 'contacts') {
+    contactsForm.render({
       email: buyer.email,
       phone: buyer.phone,
       valid: isContactsStepValid(errors),
@@ -263,6 +256,12 @@ events.on<{ id: string }>('card:add-to-basket', ({ id }) => {
   cart.addItem(item);
 });
 
+events.on<{ id: string }>('card:remove-from-basket', ({ id }) => {
+  const item = cart.getItems().find((p) => p.id === id);
+  if (!item) return;
+  cart.removeItem(item);
+});
+
 events.on<{ id: string }>('basket:remove', ({ id }) => {
   const item = cart.getItems().find((p) => p.id === id);
   if (!item) return;
@@ -271,8 +270,8 @@ events.on<{ id: string }>('basket:remove', ({ id }) => {
 
 events.on('basket:submit', () => openOrderModal());
 
-events.on<{ payment: 'online' | 'upon receipt' }>('order:payment-select', ({ payment }) => {
-  order.setData({ payment });
+events.on<{ payment: 'card' | 'cash' }>('order:payment-select', ({ payment }) => {
+  order.setData({ payment: payment === 'card' ? 'online' : 'upon receipt' });
 });
 
 events.on<{ address: string }>('order:address-change', ({ address }) => {
@@ -306,16 +305,11 @@ events.on('contacts:submit', async () => {
 
 events.on('success:close', () => {
   modal.close();
-  cart.clear();
-  order.clear();
   products.setSelectedItem(null);
 });
 
 events.on('modal:close', () => {
   currentModalScreen = 'none';
-  currentOrderForm = null;
-  currentContactsForm = null;
-  currentBasketView = null;
   products.setSelectedItem(null);
 });
 

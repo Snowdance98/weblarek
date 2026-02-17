@@ -3,6 +3,7 @@ export { Header } from './Header';
 export { Gallery } from './Gallery';
 
 export { CardBase } from './CardBase';
+export { CardWithCategory } from './CardWithCategory';
 export { CardCatalog } from './CardCatalog';
 export { CardPreview } from './CardPreview';
 export { CardBasket } from './CardBasket';
